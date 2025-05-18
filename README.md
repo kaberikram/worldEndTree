@@ -16,3 +16,19 @@ This project is a unique application that fetches your personal music data from 
 
 ## Project Goal
 To create a visually engaging and interactive way to explore your monthly music trends, blending data visualization with creative 3D graphics. 
+
+## Application Flow
+
+```mermaid
+graph TD
+    A[User's Browser] -->|Accesses Web App| B(Frontend Web App)
+    B -->|Initiates OAuth 2.0 PKCE Flow| C(Spotify Authorization Service)
+    C -->|Redirects with Authorization Code| B
+    B -->|Exchanges Code for Access Token| C
+    B -->|Requests Top Tracks Data| D(Spotify Web API)
+    D -->|Returns JSON Data| B
+    B -->|Processes Data & Updates State| E(Zustand Store)
+    E -->|Provides Data to UI Components| F(React Three Fiber / React Components)
+    F -->|Renders 3D Tree Visualization| G[User Sees Visualization]
+    G -->|User Interaction (Hover, Orbit)| B
+``` 
