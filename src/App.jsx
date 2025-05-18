@@ -1,9 +1,10 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, Suspense, useMemo } from 'react'
 import { Routes, Route, Link, useNavigate, useLocation } from 'react-router-dom'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
 import './App.css'
 import useAuthStore from './store/authStore'
+import { Canvas } from '@react-three/fiber'
+import { OrbitControls, useTexture, Billboard, Html } from '@react-three/drei'
+import * as THREE from 'three'
 
 // Placeholder for where your Client ID will be accessed
 const clientId = import.meta.env.VITE_SPOTIFY_CLIENT_ID
@@ -208,7 +209,6 @@ function MainAppScreen() {
       setLoading(true)
       setError(null)
       try {
-        // Fetch top tracks (e.g., top 10, medium_term)
         const response = await fetch('https://api.spotify.com/v1/me/top/tracks?time_range=medium_term&limit=10', {
           headers: {
             Authorization: `Bearer ${accessToken}`,
@@ -223,8 +223,6 @@ function MainAppScreen() {
       } catch (err) {
         console.error('Error fetching top tracks:', err)
         setError(err.message)
-        // Potentially clear tokens if auth error (e.g., 401 Unauthorized)
-        // if (err.status === 401) useAuthStore.getState().clearTokens()
       }
       setLoading(false)
     }
@@ -232,34 +230,221 @@ function MainAppScreen() {
     fetchTopTracks()
   }, [accessToken])
 
-  if (!isAuthenticated) return null // Should be handled by router, but as a safeguard
+  // ---- Start: Logic moved from TreeVisualization.jsx for mindMapElements ----
+  const centralNodePosition = useMemo(() => new THREE.Vector3(0, 0, 0), []);
+
+  const mindMapElements = useMemo(() => {
+    if (!topTracks) return [];
+    const elements = [];
+    let firstNodePositionArray = [0,0,0];
+
+    topTracks.forEach((track, index) => {
+      const rank = index + 1;
+      const albumArtUrl = track.album?.images?.[0]?.url;
+      let nodePositionVec = new THREE.Vector3();
+      let branchStartPointVec = new THREE.Vector3().copy(centralNodePosition);
+
+      if (rank === 1) {
+        nodePositionVec.copy(centralNodePosition);
+        firstNodePositionArray = nodePositionVec.toArray();
+      } else {
+        const angle = ( (index -1) / (topTracks.length -1) ) * Math.PI * 2 + (Math.random() - 0.5) * 0.8;
+        const yAngle = (Math.random() - 0.5) * Math.PI * 0.4;
+        const baseRadius = 4;
+        const radiusIncrement = 0.7;
+        const radius = baseRadius + (rank - 2) * radiusIncrement * (1 + (Math.random() - 0.5) * 0.6);
+        
+        nodePositionVec.set(
+          radius * Math.cos(angle) * Math.cos(yAngle),
+          radius * Math.sin(yAngle),
+          radius * Math.sin(angle) * Math.cos(yAngle)
+        );
+        nodePositionVec.add(centralNodePosition);
+        branchStartPointVec.fromArray(firstNodePositionArray);
+      }
+
+      elements.push({
+        type: 'node',
+        id: track.id,
+        position: nodePositionVec.toArray(),
+        trackName: track.name,
+        albumArtUrl: albumArtUrl,
+        rank: rank,
+      });
+
+      if (rank > 1) {
+        elements.push({
+          type: 'branch',
+          id: `branch-${track.id}`,
+          startPoint: branchStartPointVec.toArray(),
+          endPoint: nodePositionVec.toArray(),
+        });
+      }
+    });
+    return elements;
+  }, [topTracks, centralNodePosition]);
+
+  const songNodes = mindMapElements.filter(el => el.type === 'node');
+  const branches = mindMapElements.filter(el => el.type === 'branch');
+  // ---- End: Logic moved from TreeVisualization.jsx ----
+
+  if (!isAuthenticated) return null; // Should be handled by router, but as a safeguard
+
+  // If loading, show a full-screen loading message (could be styled better later)
+  if (loading) return <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.7)', color: 'white', zIndex: 10000 }}><p>Loading top tracks...</p></div>;
+  
+  // If error, show a full-screen error (could be styled better)
+  if (error) return <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(255,0,0,0.7)', color: 'white', zIndex: 10000 }}><p>Error: {error}</p><button onClick={() => window.location.reload()}>Try Again</button></div>;
 
   return (
-    <div>
-      <h1>Welcome to the Main App!</h1>
-      <p>Your 3D Tree will be here, based on your top tracks.</p>
-      <h2>Your Top 10 Tracks (Medium Term):</h2>
-      {loading && <p>Loading top tracks...</p>}
-      {error && <p style={{ color: 'red' }}>Error: {error}</p>}
-      {topTracks && (
-        <ol>
-          {topTracks.map((track) => (
-            <li key={track.id}>
-              {track.album && track.album.images && track.album.images.length > 0 && (
-                <img 
-                  src={track.album.images[0].url} 
-                  alt={`Album art for ${track.album.name}`} 
-                  style={{ width: '50px', height: '50px', marginRight: '10px' }} 
-                />
-              )}
-              {track.name} by {track.artists.map(artist => artist.name).join(', ')}
-            </li>
+    <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh' }}> {/* Removed background: 'grey' */}
+      <Canvas camera={{ position: [0, 2, 18], fov: 60 }} style={{ background: 'transparent' }}>
+        <color attach="background" args={['white']} />
+        <ambientLight intensity={0.7 * Math.PI} />
+        <spotLight 
+          position={[10, 15, 10]} angle={0.4} penumbra={0.7} intensity={0.8 * Math.PI}
+          castShadow shadow-mapSize-width={1024} shadow-mapSize-height={1024} decay={1.5} distance={50}
+        />
+        <directionalLight position={[-10, -5, -10]} intensity={0.2 * Math.PI} />
+        
+        <Suspense fallback={null}>
+          {songNodes.map(nodeProps => (
+            <SongNode key={nodeProps.id} {...nodeProps} />
           ))}
-        </ol>
+          {branches.map(branchProps => (
+            <Branch key={branchProps.id} {...branchProps} />
+          ))}
+        </Suspense>
+
+        <OrbitControls autoRotate autoRotateSpeed={0.4} enablePan={true} target={[0, 0, 0]} />
+
+        {/* HTML Overlay for Top Tracks List - REMOVED FROM HERE */}
+      </Canvas>
+
+      {/* Fixed 2D UI for Top Tracks List */}
+      {topTracks && (
+        <div 
+          style={{
+            position: 'fixed',
+            bottom: '20px',
+            right: '30px',
+            width: 'calc(100% - 60px)',
+            maxWidth: '175px',
+            maxHeight: '175px',
+            overflowY: 'auto',
+            background: 'rgba(255, 255, 255, 0.85)',
+            padding: '12px', // Reduced from 15px
+            borderRadius: '12px',
+            boxShadow: '0 6px 18px rgba(0,0,0,0.2)',
+            zIndex: 10, // Ensure it's above the canvas
+            fontFamily: '"Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+            color: '#333',
+            transition: 'opacity 0.3s ease-in-out, transform 0.3s ease-in-out',
+            opacity: 1,
+          }}
+          className="tracks-overlay"
+        >
+          <h3 style={{ marginTop: 0, marginBottom: '10px', borderBottom: '1px solid #ccc', paddingBottom: '6px', fontSize: '1em' }}>Your Top Tracks</h3>
+          <ol className="track-list" style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+            {topTracks.map((track) => (
+              <li key={track.id} className="track-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '10px' }}>
+                {track.album && track.album.images && track.album.images.length > 0 && (
+                  <img 
+                    src={track.album.images[0].url} 
+                    alt={track.name} 
+                    style={{ width: '40px', height: '40px', marginRight: '10px', borderRadius: '6px', objectFit: 'cover' }}
+                  />
+                )}
+                <div style={{ display: 'flex', flexDirection: 'column', flexGrow: 1, minWidth: 0 }}>
+                  <span style={{ fontWeight: '600', fontSize: '0.85em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{track.name}</span>
+                  <span style={{ fontSize: '0.7em', color: '#555', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {track.artists.map(artist => artist.name).join(', ')}
+                  </span>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </div>
       )}
-      {!loading && !topTracks && !error && <p>No top tracks found or could not load.</p>}
     </div>
-  )
+  );
 }
+
+// ---- Start: Components moved from TreeVisualization.jsx ----
+
+function SongNode(props) {
+  const { position, albumArtUrl, trackName, id: spotifyId, rank, ...rest } = props;
+
+  const meshRef = useRef();
+  const [hovered, hover] = useState(false);
+  const [clicked, click] = useState(false);
+
+  const texture = albumArtUrl ? useTexture(albumArtUrl) : null;
+
+  const planeSize = 2.2;
+
+  return (
+    <Billboard position={position} {...rest}>
+      <mesh
+        ref={meshRef}
+        scale={clicked ? 1.25 : 1}
+        onClick={(event) => {
+          event.stopPropagation();
+          click(!clicked);
+          if (trackName) {
+            console.log('Clicked track:', trackName, 'at position:', position, 'Spotify ID:', spotifyId, 'Rank:', rank);
+          }
+        }}
+        onPointerOver={(event) => {
+          event.stopPropagation();
+          hover(true);
+        }}
+        onPointerOut={(event) => hover(false)}>
+        <planeGeometry args={[planeSize, planeSize]} />
+        <meshStandardMaterial 
+          color={hovered && !texture ? 'hotpink' : (texture ? 'white' : 'skyblue')}
+          map={texture}
+          transparent
+          opacity={texture ? 1 : 0.9}
+          side={THREE.DoubleSide}
+          depthTest={false} // Kept from previous step
+        />
+      </mesh>
+    </Billboard>
+  );
+}
+
+function Branch({ startPoint, endPoint }) {
+  const branchRef = useRef();
+
+  const { position, quaternion, length } = useMemo(() => {
+    const start = new THREE.Vector3(...startPoint);
+    const end = new THREE.Vector3(...endPoint);
+    
+    const dir = end.clone().sub(start);
+    const len = dir.length();
+    if (len === 0) return { position: [0,0,0], quaternion: new THREE.Quaternion(), length: 0 };
+    dir.normalize();
+    
+    const mid = start.clone().add(end).multiplyScalar(0.5);
+    
+    const quat = new THREE.Quaternion();
+    const cylinderUp = new THREE.Vector3(0, 1, 0);
+    quat.setFromUnitVectors(cylinderUp, dir);
+    
+    return { position: [mid.x, mid.y, mid.z], quaternion: quat, length: len };
+  }, [startPoint, endPoint]);
+
+  if (length < 0.01) return null;
+
+  return (
+    <mesh ref={branchRef} position={position} quaternion={quaternion}>
+      <cylinderGeometry args={[0.02, 0.02, length, 6]} />
+      <meshStandardMaterial color="#AAAAAA" />
+    </mesh>
+  );
+}
+
+// ---- End: Components moved from TreeVisualization.jsx ----
 
 export default App

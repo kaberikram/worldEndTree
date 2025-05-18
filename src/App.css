@@ -1,8 +1,63 @@
 #root {
   max-width: 1280px;
   margin: 0 auto;
-  padding: 2rem;
+  padding: 1rem;
   text-align: center;
+}
+
+/* General mobile-first improvements */
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+ol {
+  padding-left: 20px;
+}
+
+li {
+  text-align: left;
+  margin-bottom: 0.5rem;
+}
+
+button {
+  padding: 0.6em 1.2em;
+  font-size: 1em;
+  font-weight: 500;
+  font-family: inherit;
+  background-color: #1a1a1a;
+  cursor: pointer;
+  transition: border-color 0.25s;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  margin: 0.5em;
+}
+button:hover {
+  border-color: #646cff;
+}
+button:focus,
+button:focus-visible {
+  outline: 4px auto -webkit-focus-ring-color;
+}
+
+/* Styles for the track list and album art */
+.track-list {
+  list-style-type: none;
+  padding: 0;
+}
+
+.track-item {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+  text-align: left;
+}
+
+.album-art {
+  width: 50px;
+  height: 50px;
+  margin-right: 10px;
+  border-radius: 4px;
 }
 
 .logo {
