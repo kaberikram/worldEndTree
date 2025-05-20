@@ -2,9 +2,113 @@ import { useEffect, useState, useRef, Suspense, useMemo } from 'react'
 import { Routes, Route, Link, useNavigate, useLocation } from 'react-router-dom'
 import './App.css'
 import useAuthStore from './store/authStore'
-import { Canvas } from '@react-three/fiber'
-import { OrbitControls, useTexture, Billboard, Html } from '@react-three/drei'
+import { Canvas, useFrame, extend } from '@react-three/fiber'
+import { OrbitControls, useTexture, Billboard, Html, shaderMaterial } from '@react-three/drei'
 import * as THREE from 'three'
+import { EffectComposer, Bloom } from '@react-three/postprocessing'
+import { KernelSize } from 'postprocessing'
+
+// Gooey, animated blob branch shader
+const GooeyBranchMaterial = shaderMaterial(
+  {
+    time: 0,
+    color: new THREE.Color('#FFD700'), // Golden yellow base color
+    branchLength: 1.0,
+    blobCenter: 0.0, // Normalized position (-0.5 to 0.5)
+    blobSize: 0.25,   // Width of the blob in normalized units
+    blobAmplitudeFactor: 2.8, // Increased for a more obvious physical bulge
+    blobOpacityBoost: 0.45, // Increased for a more solid glowing blob
+    glowColor: new THREE.Color('#FFEEAA'), // Lighter yellow for glow
+    glowIntensity: 2.5, // Significantly increased for a stronger glow
+  },
+  // Vertex Shader (for mesh deformation)
+  `
+    uniform float time;
+    uniform float branchLength;
+    uniform float blobCenter;
+    uniform float blobSize;
+    uniform float blobAmplitudeFactor;
+    varying vec2 vUv;
+    varying float vNormalizedY; // Pass normalized Y to fragment shader
+
+    void main() {
+      vUv = uv;
+      vec3 pos = position;
+      
+      // Gooey displacement logic - more intense and sinewave-ish
+      float baseAmplitude = 0.022; 
+      float endSwellingMax = 0.028; 
+
+      // Calculate normalized position along the cylinder's length (-0.5 to 0.5)
+      vNormalizedY = pos.y / branchLength; // Also assign to varying
+      
+      float swellFactor = 1.0 + smoothstep(0.3, 0.5, abs(vNormalizedY)) * (endSwellingMax / baseAmplitude);
+      float currentAmplitude = baseAmplitude * swellFactor;
+      
+      // Blob effect calculation
+      float distToBlob = abs(vNormalizedY - blobCenter);
+      float blobWave = smoothstep(blobSize * 0.5, 0.0, distToBlob); // 1 at blob center, 0 outside
+      float effectiveAmplitude = currentAmplitude * (1.0 + blobWave * blobAmplitudeFactor);
+
+      vec3 normalTransformed = normalMatrix * normal;
+      
+      float displacement = sin(time * 2.2 + pos.y * 3.5) * effectiveAmplitude * 1.2;
+      displacement += cos(time * 3.8 + pos.x * 7.0) * effectiveAmplitude * 0.5; 
+
+      vec3 displacedPosition = pos + normalTransformed * displacement;
+
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(displacedPosition, 1.0);
+    }
+  `,
+  // Fragment Shader (updated for glowing bulge)
+  `
+    uniform float time;
+    uniform vec3 color;
+    uniform float blobCenter;
+    uniform float blobSize;
+    uniform float blobOpacityBoost;
+    uniform vec3 glowColor;
+    uniform float glowIntensity;
+    varying vec2 vUv;
+    varying float vNormalizedY; // Receive from vertex shader
+
+    float pseudoNoise(vec2 p) {
+        return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
+    }
+
+    void main() {
+      vec2 animatedUv = vUv;
+      animatedUv.x += time * 0.03;
+      animatedUv.y -= time * 0.05;
+
+      float pattern = sin(animatedUv.y * 10.0 + time * 1.5) * 0.4;
+      pattern += cos(animatedUv.x * 8.0 - time * 1.0) * 0.4;
+      pattern += pseudoNoise(animatedUv * 5.0 + time * 0.2) * 0.3;
+      pattern = (pattern + 1.0) / 2.0; 
+
+      float distFromCenter = distance(vUv, vec2(0.5, 0.5));
+      pattern *= (1.0 - distFromCenter * 0.8); 
+      
+      float alphaThreshold = 0.15; 
+      float featherAmount = 0.35;  
+      float baseAlpha = smoothstep(alphaThreshold - featherAmount, alphaThreshold + featherAmount, pattern);
+      baseAlpha *= 0.5; 
+      baseAlpha = clamp(baseAlpha, 0.0, 0.65);
+
+      // Blob effect: opacity boost and glow
+      float distToBlobFrag = abs(vNormalizedY - blobCenter);
+      float blobEffectFactor = smoothstep(blobSize * 0.5, 0.0, distToBlobFrag); // 1 at blob center, 0 outside
+      
+      float finalAlpha = baseAlpha + blobEffectFactor * blobOpacityBoost;
+      finalAlpha = clamp(finalAlpha, 0.0, 0.95); // Allow blob to be more opaque
+
+      vec3 finalColor = color + glowColor * blobEffectFactor * glowIntensity;
+
+      gl_FragColor = vec4(finalColor, finalAlpha);
+    }
+  `
+)
+extend({ GooeyBranchMaterial })
 
 // Placeholder for where your Client ID will be accessed
 const clientId = import.meta.env.VITE_SPOTIFY_CLIENT_ID
@@ -294,15 +398,15 @@ function MainAppScreen() {
   if (loading) return <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.7)', color: 'white', zIndex: 10000 }}><p>Loading top tracks...</p></div>;
   
   // If error, show a full-screen error (could be styled better)
-  if (error) return <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(255,0,0,0.7)', color: 'white', zIndex: 10000 }}><p>Error: {error}</p><button onClick={() => window.location.reload()}>Try Again</button></div>;
+  if (error) return <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.8)', color: 'white', zIndex: 10000 }}><p>Error: {error}</p><button onClick={() => window.location.reload()}>Try Again</button></div>;
 
   return (
-    <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh' }}> {/* Removed background: 'grey' */}
-      <Canvas camera={{ position: [0, 2, 18], fov: 60 }} style={{ background: 'transparent' }}>
-        <color attach="background" args={['white']} />
-        <ambientLight intensity={0.7 * Math.PI} />
+    <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh' }}>
+      <Canvas camera={{ position: [0, 2, 18], fov: 60 }} style={{ background: 'black' }}>
+        <color attach="background" args={['black']} />
+        <ambientLight intensity={0.5 * Math.PI} />
         <spotLight 
-          position={[10, 15, 10]} angle={0.4} penumbra={0.7} intensity={0.8 * Math.PI}
+          position={[10, 15, 10]} angle={0.4} penumbra={0.7} intensity={0.6 * Math.PI}
           castShadow shadow-mapSize-width={1024} shadow-mapSize-height={1024} decay={1.5} distance={50}
         />
         <directionalLight position={[-10, -5, -10]} intensity={0.2 * Math.PI} />
@@ -311,14 +415,29 @@ function MainAppScreen() {
           {songNodes.map(nodeProps => (
             <SongNode key={nodeProps.id} {...nodeProps} />
           ))}
-          {branches.map(branchProps => (
-            <Branch key={branchProps.id} {...branchProps} />
+          {branches.map((branchProps, index) => (
+            <Branch 
+              key={branchProps.id} 
+              {...branchProps} 
+              animationOffset={index * 0.3} // Stagger animation start
+            />
           ))}
         </Suspense>
 
         <OrbitControls autoRotate autoRotateSpeed={0.4} enablePan={true} target={[0, 0, 0]} />
 
-        {/* HTML Overlay for Top Tracks List - REMOVED FROM HERE */}
+        {/* Post-processing effects */}
+        <EffectComposer>
+          <Bloom 
+            intensity={0.6} 
+            luminanceThreshold={0.8} // Only bloom on very bright parts
+            luminanceSmoothing={0.2}
+            mipmapBlur={true} // Better performance
+            kernelSize={KernelSize.MEDIUM} // Performance-conscious kernel size
+          />
+          {/* Other effects can be added here */}
+        </EffectComposer>
+
       </Canvas>
 
       {/* Fixed 2D UI for Top Tracks List */}
@@ -387,6 +506,7 @@ function SongNode(props) {
     <Billboard position={position} {...rest}>
       <mesh
         ref={meshRef}
+        renderOrder={1}
         scale={clicked ? 1.25 : 1}
         onClick={(event) => {
           event.stopPropagation();
@@ -414,20 +534,18 @@ function SongNode(props) {
   );
 }
 
-function Branch({ startPoint, endPoint }) {
+function Branch({ startPoint, endPoint, animationOffset = 0 }) {
   const branchRef = useRef();
+  const materialRef = useRef();
 
   const { position, quaternion, length } = useMemo(() => {
     const start = new THREE.Vector3(...startPoint);
     const end = new THREE.Vector3(...endPoint);
-    
     const dir = end.clone().sub(start);
     const len = dir.length();
     if (len === 0) return { position: [0,0,0], quaternion: new THREE.Quaternion(), length: 0 };
     dir.normalize();
-    
     const mid = start.clone().add(end).multiplyScalar(0.5);
-    
     const quat = new THREE.Quaternion();
     const cylinderUp = new THREE.Vector3(0, 1, 0);
     quat.setFromUnitVectors(cylinderUp, dir);
@@ -435,12 +553,42 @@ function Branch({ startPoint, endPoint }) {
     return { position: [mid.x, mid.y, mid.z], quaternion: quat, length: len };
   }, [startPoint, endPoint]);
 
+  useEffect(() => {
+    if (materialRef.current) {
+      materialRef.current.uniforms.branchLength.value = length;
+    }
+  }, [length]);
+
+  useFrame(({ clock }) => {
+    if (materialRef.current) {
+      materialRef.current.time = clock.getElapsedTime(); // General time for other shader effects
+      
+      // Calculate effective time for this branch's blob animation, considering the offset
+      const effectiveAnimationTime = Math.max(0, clock.getElapsedTime() - animationOffset);
+      
+      // Animate blobCenter: loop from -0.5 to 0.5 along the branch
+      const speed = 0.2; // Controls speed of blob movement (normalized units per second)
+      materialRef.current.uniforms.blobCenter.value = (effectiveAnimationTime * speed) % 1.0 - 0.5;
+    }
+  });
+
   if (length < 0.01) return null;
 
   return (
-    <mesh ref={branchRef} position={position} quaternion={quaternion}>
-      <cylinderGeometry args={[0.02, 0.02, length, 6]} />
-      <meshStandardMaterial color="#AAAAAA" />
+    <mesh 
+      ref={branchRef} 
+      position={position} 
+      quaternion={quaternion}
+      renderOrder={0} // Render branches before planes
+    >
+      {/* Adjusted radius and radial segments for thinner branches */}
+      <cylinderGeometry args={[0.03, 0.03, length, 24, 4, false]} /> 
+      <gooeyBranchMaterial 
+        ref={materialRef} 
+        color="#80c7ff" 
+        transparent 
+        depthWrite={false} // Explicitly false for transparent branches
+      />
     </mesh>
   );
 }
