@@ -7,6 +7,11 @@ const redirectUri = window.location.hostname === 'localhost' || window.location.
   ? 'http://127.0.0.1:5174/callback'
   : `${window.location.origin}/callback`
 
+// Debug logging to help troubleshoot
+console.log('🔍 Current hostname:', window.location.hostname)
+console.log('🔍 Using redirect URI:', redirectUri)
+console.log('🔍 Client ID:', clientId)
+
 // Helper function to generate a random string for code_verifier and state
 export function generateRandomString(length) {
   let text = ''
