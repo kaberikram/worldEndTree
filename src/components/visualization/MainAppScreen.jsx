@@ -196,39 +196,37 @@ function MainAppScreen() {
           flexDirection: 'column',
           padding: '40px'
         }}>
-          {/* Track Mind Map */}
+          {/* Small Network Diagram at Top */}
           <div style={{
             display: 'flex',
             justifyContent: 'center',
             marginTop: '40px',
             marginBottom: '20px'
           }}>
-            <div style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '15px',
-              alignItems: 'center'
-            }}>
-              {topTracks && topTracks.slice(0, 5).map((track, index) => (
-                <div
-                  key={track.id}
-                  style={{
-                    padding: '7px 14px',
-                    background: 'transparent',
-                    borderRadius: '25px',
-                    border: '1px solid rgba(255,255,255,0.3)',
-                    fontSize: '0.63rem',
-                    fontWeight: '500',
-                    color: '#fff',
-                    textAlign: 'center',
-                    minWidth: '140px',
-                    boxShadow: '0 2px 10px rgba(0,0,0,0.3)'
-                  }}
-                >
-                  {track.name.length > 25 ? track.name.substring(0, 25) + '...' : track.name}
-                </div>
-              ))}
-            </div>
+            <svg width="120" height="120" viewBox="0 0 80 80">
+              <defs>
+                <radialGradient id="nodeGradient" cx="50%" cy="50%" r="50%">
+                  <stop offset="0%" stopColor="#ffffff" stopOpacity="1" />
+                  <stop offset="100%" stopColor="#ffffff" stopOpacity="0.6" />
+                </radialGradient>
+              </defs>
+              {/* Central node */}
+              <circle cx="40" cy="40" r="8" fill="url(#nodeGradient)" />
+              {/* Surrounding nodes */}
+              <circle cx="40" cy="20" r="6" fill="url(#nodeGradient)" />
+              <circle cx="60" cy="40" r="6" fill="url(#nodeGradient)" />
+              <circle cx="40" cy="60" r="6" fill="url(#nodeGradient)" />
+              <circle cx="20" cy="40" r="6" fill="url(#nodeGradient)" />
+              <circle cx="55" cy="25" r="4" fill="url(#nodeGradient)" />
+              <circle cx="55" cy="55" r="4" fill="url(#nodeGradient)" />
+              {/* Connecting lines */}
+              <line x1="40" y1="40" x2="40" y2="20" stroke="#ffffff" strokeWidth="1.5" opacity="0.8" />
+              <line x1="40" y1="40" x2="60" y2="40" stroke="#ffffff" strokeWidth="1.5" opacity="0.8" />
+              <line x1="40" y1="40" x2="40" y2="60" stroke="#ffffff" strokeWidth="1.5" opacity="0.8" />
+              <line x1="40" y1="40" x2="20" y2="40" stroke="#ffffff" strokeWidth="1.5" opacity="0.8" />
+              <line x1="40" y1="40" x2="55" y2="25" stroke="#ffffff" strokeWidth="1" opacity="0.6" />
+              <line x1="40" y1="40" x2="55" y2="55" stroke="#ffffff" strokeWidth="1" opacity="0.6" />
+            </svg>
           </div>
 
           {/* Spacer to push content to bottom */}
