@@ -4,6 +4,7 @@ import useAuthStore from './store/authStore'
 import LoginScreen from './components/auth/LoginScreen'
 import Callback from './components/auth/Callback'
 import MainAppScreen from './components/visualization/MainAppScreen'
+import SVGTestPage from './components/visualization/SVGTestPage'
 
 function App() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
@@ -12,6 +13,7 @@ function App() {
     <Routes>
       <Route path="/callback" element={<Callback />} />
       <Route path="/" element={<LoginScreen />} />
+      <Route path="/svg-test" element={<SVGTestPage />} />
       <Route 
         path="/analyze" 
         element={isAuthenticated ? <MainAppScreen /> : <Navigate to="/" replace />}
