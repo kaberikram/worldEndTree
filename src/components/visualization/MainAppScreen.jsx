@@ -499,7 +499,6 @@ function MainAppScreen() {
           backgroundRepeat: 'no-repeat',
           opacity: 1
         }} />
-        
         {/* Content Overlay */}
         <div style={{
           position: 'relative',
@@ -509,19 +508,8 @@ function MainAppScreen() {
           flexDirection: 'column',
           padding: '40px'
         }}>
-          {/* Small Network Diagram at Top */}
-          <div style={{
-            display: 'flex',
-            justifyContent: 'center',
-            marginTop: '40px',
-            marginBottom: '20px'
-          }}>
-            {getCategorySVG(analysisResult.determined_category)}
-          </div>
-
           {/* Spacer to push content to bottom */}
           <div style={{ flex: 1 }} />
-
           {/* Bottom Text Content */}
           <div style={{
             textAlign: 'center',
@@ -538,7 +526,6 @@ function MainAppScreen() {
             }}>
               {analysisResult.determined_category}
             </h1>
-
             {/* Description */}
             <div style={{
               maxWidth: '600px',
@@ -554,7 +541,6 @@ function MainAppScreen() {
                 "{analysisResult.category_description}"
               </p>
             </div>
-
             {/* Back Button */}
             <button
               onClick={handleBackToTree}
@@ -586,26 +572,6 @@ function MainAppScreen() {
             </button>
           </div>
         </div>
-
-        {/* Logout button */}
-        <button 
-          onClick={handleLogout} 
-          style={{
-            position: 'absolute', 
-            top: '20px', 
-            left: '20px', 
-            zIndex: 10001,
-            padding: '8px 15px',
-            background: 'rgba(255,255,255,0.1)',
-            color: 'white',
-            border: '1px solid rgba(255,255,255,0.3)',
-            borderRadius: '5px',
-            cursor: 'pointer',
-            backdropFilter: 'blur(10px)'
-          }}
-        >
-          Logout
-        </button>
       </div>
     )
   }
@@ -667,24 +633,6 @@ function MainAppScreen() {
       opacity: contentOpacity,
       transition: `opacity ${FADE_DURATION}ms ease-in-out`
     }}>
-      <button 
-        onClick={handleLogout} 
-        style={{
-          position: 'absolute', 
-          top: '20px', 
-          left: '20px', 
-          zIndex: 10001,
-          padding: '8px 15px',
-          background: 'rgba(255,255,255,0.1)',
-          color: 'white',
-          border: '1px solid white',
-          borderRadius: '5px',
-          cursor: 'pointer'
-        }}
-      >
-        Logout
-      </button>
-
       <Canvas camera={{ position: [0, 2, 18], fov: 60 }}>
         <color attach="background" args={['black']} />
         <ambientLight intensity={0.5 * Math.PI} />
