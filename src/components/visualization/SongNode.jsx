@@ -1,25 +1,87 @@
-import { useRef, useState } from 'react'
+import { useRef, useState, useEffect, useMemo } from 'react'
 import { useTexture, Billboard } from '@react-three/drei'
+import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 
+const SONG_NODE_APPEAR_ANIMATION_DURATION = 500; // ms
+
 function SongNode(props) {
-  const { position, albumArtUrl, trackName, id: spotifyId, rank, ...rest } = props
+  const { 
+    position, 
+    albumArtUrl, 
+    trackName, 
+    id: spotifyId, 
+    rank, 
+    appearDelay = 0, 
+    isUserProfile = false, // Destructure isUserProfile, default to false
+    ...rest 
+  } = props
 
   const meshRef = useRef()
   const [hovered, hover] = useState(false)
   const [clicked, click] = useState(false)
 
-  const texture = albumArtUrl ? useTexture(albumArtUrl) : null
+  const [currentAppearScale, setCurrentAppearScale] = useState(0.01)
+  const [animationStartTime, setAnimationStartTime] = useState(null)
 
-  const planeSize = 2.2
+  useEffect(() => {
+    const now = performance.now();
+    setAnimationStartTime(now + appearDelay);
+    setCurrentAppearScale(0.01); // Reset scale if component re-renders
+  }, [appearDelay]);
+
+  useFrame(() => {
+    if (animationStartTime && performance.now() >= animationStartTime && currentAppearScale < 1) {
+      const elapsedTimeSinceStart = performance.now() - animationStartTime;
+      let newScale = (elapsedTimeSinceStart / SONG_NODE_APPEAR_ANIMATION_DURATION);
+      newScale = Math.min(newScale, 1); // Clamp to 1
+      setCurrentAppearScale(newScale);
+    }
+  })
+
+  const texture = albumArtUrl ? useTexture(albumArtUrl) : null
+  const planeSize = 1.76
+
+  // SVG for rounded corners alpha map
+  // A 100x100 viewbox, with a rect having rx=15 (15% corner radius)
+  const roundedRectSvg = `
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+      <rect x="0" y="0" width="100" height="100" rx="15" ry="15" fill="white" />
+    </svg>
+  `;
+
+  const circleSvg = `
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+      <circle cx="50" cy="50" r="50" fill="white" />
+    </svg>
+  `;
+
+  const chosenSvg = isUserProfile ? circleSvg : roundedRectSvg;
+  const alphaMapTexture = useTexture(`data:image/svg+xml;base64,${btoa(chosenSvg)}`);
+
+  useEffect(() => {
+    if (alphaMapTexture) {
+      alphaMapTexture.magFilter = THREE.LinearFilter;
+      alphaMapTexture.minFilter = THREE.LinearFilter;
+    }
+  }, [alphaMapTexture]);
+
+  // Combine the appear scale with the click scale
+  const combinedScale = useMemo(() => {
+    return currentAppearScale * (clicked && !isUserProfile ? 1.25 : 1); // Click scale only for non-profile nodes
+  }, [currentAppearScale, clicked, isUserProfile]);
 
   return (
-    <Billboard position={position} {...rest}>
+    <Billboard 
+      position={position} 
+      scale={combinedScale > 0.001 ? combinedScale : 0.001} 
+      {...rest}
+    >
       <mesh
         ref={meshRef}
         renderOrder={1}
-        scale={clicked ? 1.25 : 1}
         onClick={(event) => {
+          if (isUserProfile) return; // Disable click for user profile
           event.stopPropagation()
           click(!clicked)
           if (trackName) {
@@ -27,18 +89,23 @@ function SongNode(props) {
           }
         }}
         onPointerOver={(event) => {
+          if (isUserProfile) return; // Disable hover for user profile
           event.stopPropagation()
           hover(true)
         }}
-        onPointerOut={(event) => hover(false)}>
+        onPointerOut={(event) => {
+          if (isUserProfile) return; // Disable hover for user profile
+          hover(false)
+        }}>
         <planeGeometry args={[planeSize, planeSize]} />
         <meshStandardMaterial 
-          color={hovered && !texture ? 'hotpink' : (texture ? 'white' : 'skyblue')}
+          color={hovered && !texture && !isUserProfile ? 'hotpink' : (texture ? 'white' : 'skyblue')}
           map={texture}
-          transparent
+          alphaMap={alphaMapTexture}
+          transparent={true}
           opacity={texture ? 1 : 0.9}
           side={THREE.DoubleSide}
-          depthTest={false} // Kept from previous step
+          depthTest={false}
         />
       </mesh>
     </Billboard>

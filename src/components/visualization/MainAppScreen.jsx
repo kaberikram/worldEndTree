@@ -21,7 +21,20 @@ function MainAppScreen() {
   const [analyzing, setAnalyzing] = useState(false)
   const [analysisResult, setAnalysisResult] = useState(null)
   const [showResultsPage, setShowResultsPage] = useState(false)
+  const [contentOpacity, setContentOpacity] = useState(0)
+  const [isInitialLoadTransitionDone, setIsInitialLoadTransitionDone] = useState(false)
+  const [loadingScreenOpacity, setLoadingScreenOpacity] = useState(1)
+  const [userProfileImageUrl, setUserProfileImageUrl] = useState(null)
   const navigate = useNavigate()
+
+  const FADE_DURATION = 500 // ms, matches CSS transition
+  const BRANCH_ANIMATION_START_DELAY = FADE_DURATION + 100; // Start branch animation after page fade
+  const BRANCH_STAGGER_DELAY = 150; // Delay between each branch appearing
+  const BRANCH_APPEAR_DURATION = 500; // Matching Branch.jsx constant
+
+  const SONG_NODE_STAGGER_DELAY = 150; // Same as branch for simplicity, or can differ
+  // Song nodes start animating slightly after their branch finishes appearing
+  const SONG_NODE_ANIMATION_START_OFFSET = BRANCH_APPEAR_DURATION + 50; // Start 50ms after branch finishes
 
   const handleLogout = () => {
     clearTokens()
@@ -62,21 +75,17 @@ function MainAppScreen() {
         throw new Error('Authentication required')
       }
       
-      // Get unique artist IDs
       const artistIds = [...new Set(
         topTracks.flatMap(track => track.artists.map(artist => artist.id))
       )]
       
-      // Fetch artist details for genres
       const artistDetails = await fetchArtistDetails(artistIds, token)
       
-      // Create artist genres map
       const artistGenresMap = {}
       artistDetails.forEach(artist => {
         artistGenresMap[artist.id] = artist.genres || []
       })
       
-      // Enhance tracks with artist genres
       const enhancedTracks = topTracks.map(track => ({
         ...track,
         artists: track.artists.map(artist => ({
@@ -85,78 +94,131 @@ function MainAppScreen() {
         }))
       }))
       
-      // Perform genre-based analysis
       const result = analyzeBranch(enhancedTracks)
-      setAnalysisResult(result)
-      setShowResultsPage(true)
+      
+      setTimeout(() => {
+        setAnalysisResult(result)
+        setContentOpacity(0)
+        setTimeout(() => {
+          setShowResultsPage(true)
+          requestAnimationFrame(() => {
+            setContentOpacity(1)
+          })
+          setAnalyzing(false)
+        }, FADE_DURATION)
+      }, 3000)
       
     } catch (err) {
       console.error('Error analyzing branch:', err)
       setError(`Analysis failed: ${err.message}`)
-    } finally {
+      setContentOpacity(1)
       setAnalyzing(false)
     }
   }
 
   const handleBackToTree = () => {
-    setShowResultsPage(false)
-    setAnalysisResult(null)
+    setContentOpacity(0) // Start fade-out
+    setTimeout(() => {
+      setShowResultsPage(false)
+      setAnalysisResult(null)
+      requestAnimationFrame(() => {
+        setContentOpacity(1) // Fade in 3D tree
+      })
+    }, FADE_DURATION)
   }
 
   useEffect(() => {
-    const fetchTracks = async () => {
+    const fetchTracksAndProfile = async () => {
       if (!isAuthenticated) {
         setLoading(false)
         navigate('/')
         return
       }
       
+      setContentOpacity(0)
+      setLoadingScreenOpacity(1)
       setLoading(true)
       setError(null)
+      setUserProfileImageUrl(null) // Reset on new fetch
       
       const token = await getValidAccessToken()
 
       if (!token) {
         setError('Authentication session ended. Please log in again.')
         setLoading(false)
+        setContentOpacity(1)
         return
       }
 
       try {
-        const response = await fetch('https://api.spotify.com/v1/me/top/tracks?time_range=medium_term&limit=10', {
+        // Fetch Top Tracks
+        const tracksResponse = await fetch('https://api.spotify.com/v1/me/top/tracks?time_range=medium_term&limit=10', {
           headers: {
             Authorization: `Bearer ${token}`,
           },
         })
         
-        if (!response.ok) {
-          const errorData = await response.json()
-          if (response.status === 401) {
+        if (!tracksResponse.ok) {
+          const errorData = await tracksResponse.json()
+          if (tracksResponse.status === 401) {
             setError('Your Spotify session has expired or changed. Please log in again.')
             clearTokens()
           } else {
             setError(errorData.error?.message || 'Failed to fetch top tracks from Spotify.')
           }
           setLoading(false)
+          setContentOpacity(1)
           return
         }
+        const tracksData = await tracksResponse.json()
+        setTopTracks(tracksData.items)
+
+        // Fetch User Profile
+        const profileResponse = await fetch('https://api.spotify.com/v1/me', {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        })
+
+        if (!profileResponse.ok) {
+          // Non-critical error, we can proceed without profile pic
+          console.warn('Failed to fetch user profile') 
+        } else {
+          const profileData = await profileResponse.json()
+          if (profileData.images && profileData.images.length > 0) {
+            // Prefer larger images if available, otherwise take the first one
+            const sortedImages = profileData.images.sort((a, b) => b.width - a.width);
+            setUserProfileImageUrl(sortedImages[0].url)
+          } else {
+            console.warn('User profile has no images.')
+          }
+        }
         
-        const data = await response.json()
-        setTopTracks(data.items)
+        setTimeout(() => {
+          setLoadingScreenOpacity(0)
+          setTimeout(() => {
+            setLoading(false)
+            setContentOpacity(1)
+            setIsInitialLoadTransitionDone(true)
+          }, FADE_DURATION)
+        }, 3000)
+
       } catch (err) {
         console.error('Error fetching top tracks:', err.message)
         if (!error) {
           setError(err.message || 'A network or unexpected error occurred.')
         }
+        setLoadingScreenOpacity(0)
+        setLoading(false)
+        setContentOpacity(1)
       }
-      setLoading(false)
     }
 
-    fetchTracks()
-  }, [isAuthenticated, getValidAccessToken, clearTokens, navigate, error])
+    fetchTracksAndProfile()
+  }, [isAuthenticated, getValidAccessToken, clearTokens, navigate])
 
   const centralNodePosition = useMemo(() => new THREE.Vector3(0, 0, 0), [])
-  const mindMapElements = useMemo(() => generateMindMapElements(topTracks, centralNodePosition), [topTracks, centralNodePosition])
+  const mindMapElements = useMemo(() => generateMindMapElements(topTracks, centralNodePosition, userProfileImageUrl), [topTracks, centralNodePosition, userProfileImageUrl])
   const songNodes = useMemo(() => filterElementsByType(mindMapElements, 'node'), [mindMapElements])
   const branches = useMemo(() => filterElementsByType(mindMapElements, 'branch'), [mindMapElements])
 
@@ -420,7 +482,9 @@ function MainAppScreen() {
         height: '100vh',
         background: '#000000',
         color: 'white',
-        overflow: 'hidden'
+        overflow: 'hidden',
+        opacity: contentOpacity,
+        transition: `opacity ${FADE_DURATION}ms ease-in-out`
       }}>
         {/* Background Image */}
         <div style={{
@@ -552,10 +616,30 @@ function MainAppScreen() {
     return (
       <div style={{ 
         position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', 
-        display: 'flex', justifyContent: 'center', alignItems: 'center', 
-        backgroundColor: 'rgba(0,0,0,0.7)', color: 'white', zIndex: 10000 
+        display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', 
+        backgroundColor: 'rgba(0,0,0,0.9)', color: 'white', zIndex: 10000,
+        opacity: loadingScreenOpacity,
+        transition: `opacity ${FADE_DURATION}ms ease-in-out`
       }}>
-        <p>Loading top tracks...</p>
+        <div 
+          style={{
+            width: '60px',
+            height: '60px',
+            borderRadius: '50%',
+            background: 'transparent',
+            border: '4px solid rgba(255, 223, 150, 0.7)',
+            animation: 'pulseGlow 1.8s infinite ease-in-out',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center'
+          }}
+        >
+          {/* Optional: a smaller, static inner orb or icon if desired */}
+          {/* <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: 'rgba(253,224,71,0.5)'}}></div> */}
+        </div>
+        <p style={{ marginTop: '25px', fontSize: '1.1rem', letterSpacing: '0.5px', color: 'rgba(255,255,255,0.8)'}}>
+          Analyzing your sonic identity...
+        </p>
       </div>
     )
   }
@@ -574,7 +658,15 @@ function MainAppScreen() {
   }
 
   return (
-    <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh' }}>
+    <div style={{ 
+      position: 'fixed', 
+      top: 0, 
+      left: 0, 
+      width: '100vw', 
+      height: '100vh',
+      opacity: contentOpacity,
+      transition: `opacity ${FADE_DURATION}ms ease-in-out`
+    }}>
       <button 
         onClick={handleLogout} 
         style={{
@@ -603,16 +695,49 @@ function MainAppScreen() {
         <directionalLight position={[-10, -5, -10]} intensity={0.2 * Math.PI} />
         
         <Suspense fallback={null}>
-          {songNodes.map(nodeProps => (
-            <SongNode key={nodeProps.id} {...nodeProps} />
-          ))}
-          {branches.map((branchProps, index) => (
+          {songNodes.map((nodeProps, index) => {
+            let songNodeAppearDelay = 0;
+            if (nodeProps.isUserProfile) {
+              // User profile node appears with the initial content fade-in
+              songNodeAppearDelay = FADE_DURATION; 
+            } else if (isInitialLoadTransitionDone) {
+              // For other song nodes, calculate delay based on their effective index
+              // (subtract 1 if user profile node exists and is first)
+              const effectiveIndex = userProfileImageUrl ? index -1 : index;
+              if (effectiveIndex >= 0) { // Ensure effectiveIndex is not negative
+                 const associatedBranchStartDelay = BRANCH_ANIMATION_START_DELAY + (effectiveIndex * SONG_NODE_STAGGER_DELAY); // Use SONG_NODE_STAGGER_DELAY
+                 songNodeAppearDelay = associatedBranchStartDelay + SONG_NODE_ANIMATION_START_OFFSET; 
+              }
+            } // else, if not initial load transition done and not user profile, delay is 0 (appears immediately)
+            
+            return (
+              <SongNode 
+                key={nodeProps.id} 
+                {...nodeProps} 
+                appearDelay={songNodeAppearDelay}
+              />
+            );
+          })}
+          {branches.map((branchProps, index) => {
+            // Branch animation delay is tied to the song nodes they connect to.
+            // If userProfileImageUrl exists, all branches connect to song nodes from index 1 onwards in the original topTracks array.
+            // So the branch index aligns with the song node's effective index for animation timing.
+            const effectiveBranchIndex = index; // The branches array is built based on tracks that *have* branches.
+                                          // The user profile node doesn't have an incoming branch this way.
+            let branchAppearDelay = 0;
+            if (isInitialLoadTransitionDone) {
+              branchAppearDelay = BRANCH_ANIMATION_START_DELAY + (effectiveBranchIndex * BRANCH_STAGGER_DELAY);
+            }
+
+            return (
             <Branch 
               key={branchProps.id} 
               {...branchProps} 
-              animationOffset={index * 0.3}
+              animationOffset={index * 0.3} // Existing prop for gooey material
+              appearDelay={branchAppearDelay} 
             />
-          ))}
+            );
+          })}
         </Suspense>
 
         <OrbitControls autoRotate autoRotateSpeed={0.4} enablePan={true} target={[0, 0, 0]} />

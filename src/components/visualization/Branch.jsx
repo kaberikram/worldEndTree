@@ -1,11 +1,24 @@
-import { useRef, useMemo, useEffect } from 'react'
+import { useRef, useMemo, useEffect, useState } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import '../materials/GooeyBranchMaterial'
 
-function Branch({ startPoint, endPoint, animationOffset = 0 }) {
-  const branchRef = useRef()
+const BRANCH_APPEAR_ANIMATION_DURATION = 500; // ms
+
+function Branch({ startPoint, endPoint, animationOffset = 0, appearDelay = 0 }) {
+  const groupRef = useRef() // Changed branchRef to groupRef for clarity with scale
   const materialRef = useRef()
+  
+  const [currentScale, setCurrentScale] = useState(0.01)
+  const [animationStartTime, setAnimationStartTime] = useState(null)
+
+  useEffect(() => {
+    // Set the time when this branch should start its appear animation
+    // performance.now() is generally more reliable for animation timing than Date.now()
+    const now = performance.now();
+    setAnimationStartTime(now + appearDelay);
+    setCurrentScale(0.01); // Reset scale if component re-renders with new delay
+  }, [appearDelay]);
 
   const { position, quaternion, length } = useMemo(() => {
     const start = new THREE.Vector3(...startPoint)
@@ -29,14 +42,19 @@ function Branch({ startPoint, endPoint, animationOffset = 0 }) {
   }, [length])
 
   useFrame(({ clock }) => {
+    // Animate scale if animationStartTime is set and current time is past it
+    if (animationStartTime && performance.now() >= animationStartTime && currentScale < 1) {
+      const elapsedTimeSinceStart = performance.now() - animationStartTime;
+      let newScale = (elapsedTimeSinceStart / BRANCH_APPEAR_ANIMATION_DURATION);
+      newScale = Math.min(newScale, 1); // Clamp to 1
+      setCurrentScale(newScale);
+    }
+
     if (materialRef.current) {
       materialRef.current.time = clock.getElapsedTime() // General time for other shader effects
       
-      // Calculate effective time for this branch's blob animation, considering the offset
       const effectiveAnimationTime = Math.max(0, clock.getElapsedTime() - animationOffset)
-      
-      // Animate blobCenter: loop from -0.5 to 0.5 along the branch
-      const speed = 0.2 // Controls speed of blob movement (normalized units per second)
+      const speed = 0.2
       materialRef.current.uniforms.blobCenter.value = (effectiveAnimationTime * speed) % 1.0 - 0.5
     }
   })
@@ -44,21 +62,23 @@ function Branch({ startPoint, endPoint, animationOffset = 0 }) {
   if (length < 0.01) return null
 
   return (
-    <mesh 
-      ref={branchRef} 
-      position={position} 
-      quaternion={quaternion}
-      renderOrder={0} // Render branches before planes
-    >
-      {/* Adjusted radius and radial segments for thinner branches */}
-      <cylinderGeometry args={[0.03, 0.03, length, 24, 4, false]} /> 
-      <gooeyBranchMaterial 
-        ref={materialRef} 
-        color="#80c7ff" 
-        transparent 
-        depthWrite={false} // Explicitly false for transparent branches
-      />
-    </mesh>
+    // Apply scale directly to the group
+    <group ref={groupRef} scale={currentScale > 0.001 ? currentScale : 0.001} > 
+      <mesh 
+        // ref is no longer needed on mesh if group controls scale/position from props
+        position={position} 
+        quaternion={quaternion}
+        renderOrder={0}
+      >
+        <cylinderGeometry args={[0.03, 0.03, length, 24, 4, false]} /> 
+        <gooeyBranchMaterial 
+          ref={materialRef} 
+          color="#80c7ff" 
+          transparent 
+          depthWrite={false}
+        />
+      </mesh>
+    </group>
   )
 }
 

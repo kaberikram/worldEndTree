@@ -4,7 +4,7 @@ const clientId = import.meta.env.VITE_SPOTIFY_CLIENT_ID
 
 // Dynamic redirect URI for both development and production
 const redirectUri = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-  ? 'http://127.0.0.1:5174/callback'
+  ? 'http://127.0.0.1:5173/callback'
   : `${window.location.origin}/callback`
 
 // Debug logging to help troubleshoot
