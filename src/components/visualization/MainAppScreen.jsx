@@ -508,6 +508,37 @@ function MainAppScreen() {
           flexDirection: 'column',
           padding: '40px'
         }}>
+          {/* Return to Tree Button at Top */}
+          <div style={{ width: '100%', display: 'flex', justifyContent: 'center', marginBottom: '40px' }}>
+            <button
+              onClick={handleBackToTree}
+              style={{
+                padding: '12px 30px',
+                background: 'transparent',
+                color: '#ffffff',
+                border: '1px solid rgba(255, 255, 255, 0.8)',
+                borderRadius: '50px',
+                fontSize: '0.9rem',
+                fontWeight: '500',
+                cursor: 'pointer',
+                transition: 'all 0.3s ease',
+                backdropFilter: 'blur(10px)',
+                letterSpacing: '0.5px'
+              }}
+              onMouseOver={(e) => {
+                e.target.style.background = 'transparent'
+                e.target.style.borderColor = 'white'
+                e.target.style.transform = 'translateY(-2px)'
+              }}
+              onMouseOut={(e) => {
+                e.target.style.background = 'transparent'
+                e.target.style.borderColor = 'rgba(255, 255, 255, 0.8)'
+                e.target.style.transform = 'translateY(0)'
+              }}
+            >
+              Return to the Tree
+            </button>
+          </div>
           {/* Spacer to push content to bottom */}
           <div style={{ flex: 1 }} />
           {/* Bottom Text Content */}
@@ -541,35 +572,6 @@ function MainAppScreen() {
                 "{analysisResult.category_description}"
               </p>
             </div>
-            {/* Back Button */}
-            <button
-              onClick={handleBackToTree}
-              style={{
-                padding: '12px 30px',
-                background: 'rgba(255, 255, 255, 0.1)',
-                color: '#ffffff',
-                border: '2px solid rgba(255, 255, 255, 0.3)',
-                borderRadius: '50px',
-                fontSize: '0.9rem',
-                fontWeight: '500',
-                cursor: 'pointer',
-                transition: 'all 0.3s ease',
-                backdropFilter: 'blur(10px)',
-                letterSpacing: '0.5px'
-              }}
-              onMouseOver={(e) => {
-                e.target.style.background = 'rgba(255, 255, 255, 0.2)'
-                e.target.style.borderColor = 'rgba(255, 255, 255, 0.5)'
-                e.target.style.transform = 'translateY(-2px)'
-              }}
-              onMouseOut={(e) => {
-                e.target.style.background = 'rgba(255, 255, 255, 0.1)'
-                e.target.style.borderColor = 'rgba(255, 255, 255, 0.3)'
-                e.target.style.transform = 'translateY(0)'
-              }}
-            >
-              Return to the Tree
-            </button>
           </div>
         </div>
       </div>
