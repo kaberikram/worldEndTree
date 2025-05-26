@@ -25,6 +25,7 @@ function MainAppScreen() {
   const [isInitialLoadTransitionDone, setIsInitialLoadTransitionDone] = useState(false)
   const [loadingScreenOpacity, setLoadingScreenOpacity] = useState(1)
   const [userProfileImageUrl, setUserProfileImageUrl] = useState(null)
+  const [loadingDots, setLoadingDots] = useState(0)
   const navigate = useNavigate()
 
   const FADE_DURATION = 500 // ms, matches CSS transition
@@ -216,6 +217,16 @@ function MainAppScreen() {
 
     fetchTracksAndProfile()
   }, [isAuthenticated, getValidAccessToken, clearTokens, navigate])
+
+  // Mobile viewport height fix
+  useEffect(() => {
+    function setVh() {
+      document.documentElement.style.setProperty('--vh', `${window.innerHeight * 0.01}px`);
+    }
+    setVh();
+    window.addEventListener('resize', setVh);
+    return () => window.removeEventListener('resize', setVh);
+  }, []);
 
   const centralNodePosition = useMemo(() => new THREE.Vector3(0, 0, 0), [])
   const mindMapElements = useMemo(() => generateMindMapElements(topTracks, centralNodePosition, userProfileImageUrl), [topTracks, centralNodePosition, userProfileImageUrl])
@@ -453,6 +464,15 @@ function MainAppScreen() {
     }
   }
 
+  // Animate loading dots
+  useEffect(() => {
+    if (!loading) return;
+    const interval = setInterval(() => {
+      setLoadingDots(dots => (dots + 1) % 4);
+    }, 500);
+    return () => clearInterval(interval);
+  }, [loading]);
+
   // Results Page Component
   if (showResultsPage && analysisResult) {
     // Define a mapping from category to background image
@@ -479,7 +499,7 @@ function MainAppScreen() {
         top: 0,
         left: 0,
         width: '100vw',
-        height: '100vh',
+        height: 'calc(var(--vh, 1vh) * 100)',
         background: '#000000',
         color: 'white',
         overflow: 'hidden',
@@ -583,7 +603,7 @@ function MainAppScreen() {
   if (loading) {
     return (
       <div style={{ 
-        position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', 
+        position: 'fixed', top: 0, left: 0, width: '100%', height: 'calc(var(--vh, 1vh) * 100)', 
         display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', 
         backgroundColor: 'rgba(0,0,0,0.9)', color: 'white', zIndex: 10000,
         opacity: loadingScreenOpacity,
@@ -606,7 +626,7 @@ function MainAppScreen() {
           {/* <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: 'rgba(253,224,71,0.5)'}}></div> */}
         </div>
         <p style={{ marginTop: '25px', fontSize: '1.1rem', letterSpacing: '0.5px', color: 'rgba(255,255,255,0.8)'}}>
-          Analyzing your sonic identity...
+          Analyzing your sonic identity{'.'.repeat(loadingDots)}
         </p>
       </div>
     )
@@ -615,7 +635,7 @@ function MainAppScreen() {
   if (error) {
     return (
       <div style={{ 
-        position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', 
+        position: 'fixed', top: 0, left: 0, width: '100%', height: 'calc(var(--vh, 1vh) * 100)', 
         display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', 
         backgroundColor: 'rgba(0,0,0,0.8)', color: 'white', zIndex: 10000 
       }}>
@@ -631,7 +651,7 @@ function MainAppScreen() {
       top: 0, 
       left: 0, 
       width: '100vw', 
-      height: '100vh',
+      height: 'calc(var(--vh, 1vh) * 100)',
       opacity: contentOpacity,
       transition: `opacity ${FADE_DURATION}ms ease-in-out`
     }}>
