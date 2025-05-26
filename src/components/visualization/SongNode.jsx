@@ -46,16 +46,16 @@ function SongNode(props) {
   const planeSize = 1.76
 
   // SVG for rounded corners alpha map
-  // A 100x100 viewbox, with a rect having rx=15 (15% corner radius)
+  // A 512x512 viewbox, with a rect having rx=80 (15% corner radius)
   const roundedRectSvg = `
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-      <rect x="0" y="0" width="100" height="100" rx="15" ry="15" fill="white" />
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+      <rect x="0" y="0" width="512" height="512" rx="80" ry="80" fill="white" />
     </svg>
   `;
 
   const circleSvg = `
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-      <circle cx="50" cy="50" r="50" fill="white" />
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+      <circle cx="256" cy="256" r="256" fill="white" />
     </svg>
   `;
 
