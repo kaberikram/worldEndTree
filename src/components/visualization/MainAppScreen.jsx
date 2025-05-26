@@ -20,7 +20,6 @@ function MainAppScreen() {
   const [error, setError] = useState(null)
   const [analyzing, setAnalyzing] = useState(false)
   const [analysisResult, setAnalysisResult] = useState(null)
-  const [showResultsPage, setShowResultsPage] = useState(false)
   const [contentOpacity, setContentOpacity] = useState(0)
   const [isInitialLoadTransitionDone, setIsInitialLoadTransitionDone] = useState(false)
   const [loadingScreenOpacity, setLoadingScreenOpacity] = useState(1)
@@ -99,33 +98,18 @@ function MainAppScreen() {
       
       setTimeout(() => {
         setAnalysisResult(result)
-        setContentOpacity(0)
-        setTimeout(() => {
-          setShowResultsPage(true)
-          requestAnimationFrame(() => {
-            setContentOpacity(1)
-          })
-          setAnalyzing(false)
-        }, FADE_DURATION)
+        setAnalyzing(false)
       }, 3000)
       
     } catch (err) {
       console.error('Error analyzing branch:', err)
       setError(`Analysis failed: ${err.message}`)
-      setContentOpacity(1)
       setAnalyzing(false)
     }
   }
 
   const handleBackToTree = () => {
-    setContentOpacity(0) // Start fade-out
-    setTimeout(() => {
-      setShowResultsPage(false)
-      setAnalysisResult(null)
-      requestAnimationFrame(() => {
-        setContentOpacity(1) // Fade in 3D tree
-      })
-    }, FADE_DURATION)
+    setAnalysisResult(null)
   }
 
   useEffect(() => {
@@ -473,131 +457,6 @@ function MainAppScreen() {
     return () => clearInterval(interval);
   }, [loading]);
 
-  // Results Page Component
-  if (showResultsPage && analysisResult) {
-    // Define a mapping from category to background image
-    const categoryBackgrounds = {
-      'Verdant Canopy': '/1.png',
-      'Deeproot Dweller': '/1.png',
-      'Aetherial Bloom': '/1.png',
-      'Dawning Spire': '/2.png',
-      'Whispering Bark': '/2.png',
-      'Celestial Echo': '/2.png',
-      'Blighted Thorn': '/3.png',
-      'Shadowed Heart': '/3.png',
-      'Ancient Sap': '/4.png',
-      'Fading Glyph': '/4.png',
-      // Fallback image if a category is not mapped
-      default: '/dweller.png' 
-    }
-
-    const backgroundImage = categoryBackgrounds[analysisResult.determined_category] || categoryBackgrounds.default
-
-    return (
-      <div style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        width: '100vw',
-        height: 'calc(var(--vh, 1vh) * 100)',
-        background: '#000000',
-        color: 'white',
-        overflow: 'hidden',
-        opacity: contentOpacity,
-        transition: `opacity ${FADE_DURATION}ms ease-in-out`
-      }}>
-        {/* Background Image */}
-        <div style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          width: '100%',
-          height: '100%',
-          backgroundImage: `url(${backgroundImage})`,
-          backgroundSize: '100%',
-          backgroundPosition: 'bottom',
-          backgroundRepeat: 'no-repeat',
-          opacity: 1
-        }} />
-        {/* Content Overlay */}
-        <div style={{
-          position: 'relative',
-          zIndex: 1,
-          height: '100%',
-          display: 'flex',
-          flexDirection: 'column',
-          padding: '40px'
-        }}>
-          {/* Return to Tree Button at Top */}
-          <div style={{ width: '100%', display: 'flex', justifyContent: 'center', marginBottom: '40px' }}>
-            <button
-              onClick={handleBackToTree}
-              style={{
-                padding: '12px 30px',
-                background: 'transparent',
-                color: '#ffffff',
-                border: '1px solid rgba(255, 255, 255, 0.8)',
-                borderRadius: '50px',
-                fontSize: '0.9rem',
-                fontWeight: '500',
-                cursor: 'pointer',
-                transition: 'all 0.3s ease',
-                backdropFilter: 'blur(10px)',
-                letterSpacing: '0.5px'
-              }}
-              onMouseOver={(e) => {
-                e.target.style.background = 'transparent'
-                e.target.style.borderColor = 'white'
-                e.target.style.transform = 'translateY(-2px)'
-              }}
-              onMouseOut={(e) => {
-                e.target.style.background = 'transparent'
-                e.target.style.borderColor = 'rgba(255, 255, 255, 0.8)'
-                e.target.style.transform = 'translateY(0)'
-              }}
-            >
-              Return to the Tree
-            </button>
-          </div>
-          {/* Spacer to push content to bottom */}
-          <div style={{ flex: 1 }} />
-          {/* Bottom Text Content */}
-          <div style={{
-            textAlign: 'center',
-            paddingBottom: '60px'
-          }}>
-            {/* Category Name */}
-            <h1 style={{
-              fontSize: '2.5rem',
-              fontWeight: '600',
-              margin: '0 0 30px 0',
-              color: '#ffffff',
-              letterSpacing: '1px',
-              fontFamily: 'system-ui, -apple-system, sans-serif'
-            }}>
-              {analysisResult.determined_category}
-            </h1>
-            {/* Description */}
-            <div style={{
-              maxWidth: '600px',
-              margin: '0 auto 40px auto'
-            }}>
-              <p style={{
-                fontSize: '1rem',
-                lineHeight: '1.5',
-                color: '#ffffff',
-                margin: 0,
-                fontWeight: '400'
-              }}>
-                "{analysisResult.category_description}"
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
   if (!isAuthenticated && !loading) return null
 
   if (loading) {
@@ -725,8 +584,10 @@ function MainAppScreen() {
 
       <TracksList 
         topTracks={topTracks} 
-        onAnalyzeBranch={handleAnalyzeBranch}
-        analyzing={analyzing}
+        onAnalyzeBranch={analysisResult ? handleBackToTree : handleAnalyzeBranch}
+        analyzing={analyzing || !!analysisResult}
+        analysisComplete={!!analysisResult}
+        analysisResult={analysisResult}
       />
     </div>
   )
