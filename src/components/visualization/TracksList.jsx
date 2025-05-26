@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
+import { playButton, playSelect, playSuccess } from '../../utils/sfx'
 
-function TracksList({ topTracks, onAnalyzeBranch, analyzing, analysisComplete, analysisResult }) {
+function TracksList({ topTracks, onAnalyzeBranch, analyzing, analysisComplete, analysisResult, onTrackSelect }) {
   if (!topTracks) return null
 
   const expanded = analyzing || analysisComplete;
@@ -20,6 +21,21 @@ function TracksList({ topTracks, onAnalyzeBranch, analyzing, analysisComplete, a
   // Button text fade state
   const [buttonTextFade, setButtonTextFade] = useState(1); // 1 = visible, 0 = hidden
   const [buttonTextState, setButtonTextState] = useState('analyzing'); // 'analyzing' | 'back'
+
+  // Animated ellipsis for analyzing
+  const [ellipsis, setEllipsis] = useState('');
+  useEffect(() => {
+    if (analyzing && !analysisComplete) {
+      let i = 0;
+      const interval = setInterval(() => {
+        setEllipsis('.'.repeat((i % 3) + 1));
+        i++;
+      }, 400);
+      return () => clearInterval(interval);
+    } else {
+      setEllipsis('');
+    }
+  }, [analyzing, analysisComplete]);
 
   // Delayed expansion state for width
   const [delayedExpanded, setDelayedExpanded] = useState(false);
@@ -113,6 +129,14 @@ function TracksList({ topTracks, onAnalyzeBranch, analyzing, analysisComplete, a
     }
   }, [analyzing, analysisComplete]);
 
+  const prevAnalysisComplete = useRef(analysisComplete)
+  useEffect(() => {
+    if (!prevAnalysisComplete.current && analysisComplete) {
+      playSuccess();
+    }
+    prevAnalysisComplete.current = analysisComplete;
+  }, [analysisComplete]);
+
   return (
     <div style={{
       position: 'fixed',
@@ -124,7 +148,10 @@ function TracksList({ topTracks, onAnalyzeBranch, analyzing, analysisComplete, a
       alignItems: 'center'
     }}>
       <button
-        onClick={onAnalyzeBranch}
+        onClick={e => {
+          if (!(analyzing && !analysisComplete)) playButton();
+          onAnalyzeBranch(e);
+        }}
         disabled={analyzing && !analysisComplete}
         style={{
           background: 'transparent',
@@ -169,7 +196,7 @@ function TracksList({ topTracks, onAnalyzeBranch, analyzing, analysisComplete, a
           {buttonTextState === 'back'
             ? 'Back to Branch'
             : buttonTextState === 'analyzing'
-              ? 'Analyzing...'
+              ? `Analyzing${ellipsis}`
               : 'Analyze Branch'}
         </span>
       </button>
@@ -201,12 +228,41 @@ function TracksList({ topTracks, onAnalyzeBranch, analyzing, analysisComplete, a
           pointerEvents: fadeOutContents ? 'none' : 'auto',
           transition: 'opacity 0.4s cubic-bezier(0.4,0,0.2,1)'
         }}>
-          <h3 style={{ marginTop: 0, marginBottom: '10px', borderBottom: '1px solid white', paddingBottom: '6px', fontSize: '1em', color: 'white' }}>
+          <h3 style={{
+            marginTop: 0,
+            marginBottom: '10px',
+            borderBottom: '1px solid white',
+            paddingBottom: '6px',
+            fontSize: '0.9em',
+            color: 'white',
+            fontFamily: "system-ui, -apple-system, sans-serif",
+            fontWeight: 500,
+            letterSpacing: '1px',
+            textAlign: 'center',
+          }}>
             Deep Rooted Tracks
           </h3>
           <ol className="track-list" style={{ listStyle: 'none', padding: 0, margin: 0 }}>
             {topTracks.map((track) => (
-              <li key={track.id} className="track-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '10px' }}>
+              <li
+                key={track.id}
+                className="track-item"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  marginBottom: '10px',
+                  cursor: onTrackSelect ? 'pointer' : 'default',
+                  borderRadius: '8px',
+                  transition: 'background 0.18s',
+                }}
+                onClick={onTrackSelect ? () => {
+                  playSelect();
+                  onTrackSelect(track.id)
+                } : undefined}
+                onKeyDown={onTrackSelect ? (e) => { if (e.key === 'Enter') onTrackSelect(track.id) } : undefined}
+                tabIndex={onTrackSelect ? 0 : undefined}
+                aria-label={onTrackSelect ? `Focus on ${track.name}` : undefined}
+              >
                 {track.album && track.album.images && track.album.images.length > 0 && (
                   <img 
                     src={track.album.images[0].url} 
@@ -278,43 +334,31 @@ function TracksList({ topTracks, onAnalyzeBranch, analyzing, analysisComplete, a
             boxSizing: 'border-box',
             overflow: 'hidden',
           }}>
-            <div style={{
-              background: 'rgba(10,10,10,0.92)',
-              borderRadius: '16px',
-              padding: '18px 14px 16px 14px',
-              maxWidth: '100%',
-              width: '100%',
-              boxSizing: 'border-box',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
+            <h3 style={{
+              margin: 0,
+              marginBottom: '6px',
+              fontSize: '1em',
+              color: '#fff',
+              fontWeight: 700,
+              letterSpacing: '0.5px',
+              textAlign: 'center',
+              textShadow: '0 2px 8px rgba(0,0,0,0.18)'
             }}>
-              <h3 style={{
-                margin: 0,
-                marginBottom: '6px',
-                fontSize: '1em',
-                color: '#fff',
-                fontWeight: 700,
-                letterSpacing: '0.5px',
-                textAlign: 'center',
-                textShadow: '0 2px 8px rgba(0,0,0,0.18)'
-              }}>
-                {analysisResult.determined_category}
-              </h3>
-              <p style={{
-                margin: 0,
-                fontSize: '0.85em',
-                color: '#e0e0e0',
-                fontWeight: 400,
-                textAlign: 'center',
-                lineHeight: 1.5,
-                textShadow: '0 1px 4px rgba(0,0,0,0.12)',
-                letterSpacing: '0.01em',
-                padding: 0,
-              }}>
-                {analysisResult.category_description}
-              </p>
-            </div>
+              {analysisResult.determined_category}
+            </h3>
+            <p style={{
+              margin: 0,
+              fontSize: '0.85em',
+              color: '#e0e0e0',
+              fontWeight: 400,
+              textAlign: 'center',
+              lineHeight: 1.5,
+              textShadow: '0 1px 4px rgba(0,0,0,0.12)',
+              letterSpacing: '0.01em',
+              padding: 0,
+            }}>
+              {analysisResult.category_description}
+            </p>
           </div>
         )}
       </div>

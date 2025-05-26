@@ -1,6 +1,6 @@
-import { useEffect, useState, useMemo, Suspense } from 'react'
+import { useEffect, useState, useMemo, Suspense, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Canvas } from '@react-three/fiber'
+import { Canvas, useThree } from '@react-three/fiber'
 import { OrbitControls } from '@react-three/drei'
 import { EffectComposer, Bloom } from '@react-three/postprocessing'
 import { KernelSize } from 'postprocessing'
@@ -25,6 +25,7 @@ function MainAppScreen() {
   const [loadingScreenOpacity, setLoadingScreenOpacity] = useState(1)
   const [userProfileImageUrl, setUserProfileImageUrl] = useState(null)
   const [loadingDots, setLoadingDots] = useState(0)
+  const [selectedTrackId, setSelectedTrackId] = useState(null)
   const navigate = useNavigate()
 
   const FADE_DURATION = 500 // ms, matches CSS transition
@@ -35,6 +36,89 @@ function MainAppScreen() {
   const SONG_NODE_STAGGER_DELAY = 150; // Same as branch for simplicity, or can differ
   // Song nodes start animating slightly after their branch finishes appearing
   const SONG_NODE_ANIMATION_START_OFFSET = BRANCH_APPEAR_DURATION + 50; // Start 50ms after branch finishes
+
+  // Camera and controls refs
+  const cameraRef = useRef();
+  const controlsRef = useRef();
+
+  // Cubic ease-in-out
+  function easeInOutCubic(x) {
+    return x < 0.5
+      ? 4 * x * x * x
+      : 1 - Math.pow(-2 * x + 2, 3) / 2;
+  }
+
+  // Animate camera to a target position
+  const animateCameraTo = (targetPosition) => {
+    if (!cameraRef.current || !controlsRef.current) return;
+    const camera = cameraRef.current;
+    const controls = controlsRef.current;
+    // Animate camera position and controls target
+    const start = {
+      position: camera.position.clone(),
+      target: controls.target.clone(),
+    };
+    const end = {
+      position: new THREE.Vector3(
+        targetPosition.x,
+        targetPosition.y,
+        targetPosition.z + 4 // Offset camera back a bit
+      ),
+      target: new THREE.Vector3(targetPosition.x, targetPosition.y, targetPosition.z),
+    };
+    const duration = 0.8; // seconds (a bit slower)
+    let startTime = null;
+    function animate(time) {
+      if (!startTime) startTime = time;
+      const t = Math.min((time - startTime) / (duration * 1000), 1);
+      const easedT = easeInOutCubic(t);
+      camera.position.lerpVectors(start.position, end.position, easedT);
+      controls.target.lerpVectors(start.target, end.target, easedT);
+      controls.update();
+      if (t < 1) {
+        requestAnimationFrame(animate);
+      }
+    }
+    requestAnimationFrame(animate);
+  };
+
+  // Animate camera to a target position
+  function resetCamera() {
+    if (!cameraRef.current || !controlsRef.current) return;
+    const camera = cameraRef.current;
+    const controls = controlsRef.current;
+    const start = {
+      position: camera.position.clone(),
+      target: controls.target.clone(),
+    };
+    const end = {
+      position: new THREE.Vector3(0, 2, 18),
+      target: new THREE.Vector3(0, 0, 0),
+    };
+    const duration = 0.8;
+    let startTime = null;
+    function animate(time) {
+      if (!startTime) startTime = time;
+      const t = Math.min((time - startTime) / (duration * 1000), 1);
+      const easedT = easeInOutCubic(t);
+      camera.position.lerpVectors(start.position, end.position, easedT);
+      controls.target.lerpVectors(start.target, end.target, easedT);
+      controls.update();
+      if (t < 1) {
+        requestAnimationFrame(animate);
+      }
+    }
+    requestAnimationFrame(animate);
+  }
+
+  // Handle track selection from list
+  const handleTrackSelect = (trackId) => {
+    const node = songNodes.find(n => n.id === trackId);
+    if (node && node.position) {
+      animateCameraTo(new THREE.Vector3(...node.position));
+    }
+    setSelectedTrackId(trackId);
+  };
 
   const handleLogout = () => {
     clearTokens()
@@ -106,10 +190,16 @@ function MainAppScreen() {
       setError(`Analysis failed: ${err.message}`)
       setAnalyzing(false)
     }
+
+    // Reset camera and hide all track names
+    resetCamera();
+    setSelectedTrackId(null);
   }
 
   const handleBackToTree = () => {
     setAnalysisResult(null)
+    // Only hide all track names, do not reset camera
+    setSelectedTrackId(null);
   }
 
   useEffect(() => {
@@ -515,6 +605,7 @@ function MainAppScreen() {
       transition: `opacity ${FADE_DURATION}ms ease-in-out`
     }}>
       <Canvas camera={{ position: [0, 2, 18], fov: 60 }}>
+        <CameraRefsSetter cameraRef={cameraRef} controlsRef={controlsRef} />
         <color attach="background" args={['black']} />
         <ambientLight intensity={0.5 * Math.PI} />
         <spotLight 
@@ -524,7 +615,7 @@ function MainAppScreen() {
         <directionalLight position={[-10, -5, -10]} intensity={0.2 * Math.PI} />
         
         <Suspense fallback={null}>
-          {songNodes.map((nodeProps, index) => {
+          {songNodes.map((nodeProps) => {
             let songNodeAppearDelay = 0;
             if (nodeProps.isUserProfile) {
               // User profile node appears with the initial content fade-in
@@ -532,18 +623,32 @@ function MainAppScreen() {
             } else if (isInitialLoadTransitionDone) {
               // For other song nodes, calculate delay based on their effective index
               // (subtract 1 if user profile node exists and is first)
-              const effectiveIndex = userProfileImageUrl ? index -1 : index;
+              const effectiveIndex = userProfileImageUrl ? songNodes.indexOf(nodeProps) -1 : songNodes.indexOf(nodeProps);
               if (effectiveIndex >= 0) { // Ensure effectiveIndex is not negative
                  const associatedBranchStartDelay = BRANCH_ANIMATION_START_DELAY + (effectiveIndex * SONG_NODE_STAGGER_DELAY); // Use SONG_NODE_STAGGER_DELAY
                  songNodeAppearDelay = associatedBranchStartDelay + SONG_NODE_ANIMATION_START_OFFSET; 
               }
             } // else, if not initial load transition done and not user profile, delay is 0 (appears immediately)
-            
+
+            // Find the correct track index and name by matching nodeProps.id to topTracks
+            let trackIndex = null;
+            let trackName = null;
+            if (topTracks) {
+              const foundIndex = topTracks.findIndex(track => track.id === nodeProps.id);
+              if (foundIndex !== -1) {
+                trackIndex = foundIndex;
+                trackName = topTracks[foundIndex].name;
+              }
+            }
+
             return (
               <SongNode 
                 key={nodeProps.id} 
                 {...nodeProps} 
                 appearDelay={songNodeAppearDelay}
+                isSelected={selectedTrackId === nodeProps.id}
+                trackIndex={trackIndex}
+                trackName={trackName}
               />
             );
           })}
@@ -569,7 +674,7 @@ function MainAppScreen() {
           })}
         </Suspense>
 
-        <OrbitControls autoRotate autoRotateSpeed={0.4} enablePan={true} target={[0, 0, 0]} />
+        <OrbitControls autoRotate autoRotateSpeed={0.4} enablePan={true} target={[0, 0, 0]} ref={controlsRef} />
 
         <EffectComposer>
           <Bloom 
@@ -588,9 +693,20 @@ function MainAppScreen() {
         analyzing={analyzing || !!analysisResult}
         analysisComplete={!!analysisResult}
         analysisResult={analysisResult}
+        onTrackSelect={handleTrackSelect}
       />
     </div>
   )
+}
+
+function CameraRefsSetter({ cameraRef, controlsRef }) {
+  // This component runs inside the Canvas context
+  const { camera } = useThree();
+  useEffect(() => {
+    if (cameraRef) cameraRef.current = camera;
+  }, [camera, cameraRef]);
+  // controlsRef is set by OrbitControls ref prop
+  return null;
 }
 
 export default MainAppScreen 

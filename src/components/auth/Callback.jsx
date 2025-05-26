@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import useAuthStore from '../../store/authStore'
 import { exchangeCodeForToken } from '../../utils/spotifyAuth'
+import { playSuccess, playError } from '../../utils/sfx'
 
 function Callback() {
   const location = useLocation()
@@ -23,9 +24,11 @@ function Callback() {
         const tokens = await exchangeCodeForToken(authCode, receivedState)
         setTokens(tokens)
         setMessage('Login successful! Redirecting to analysis...')
+        playSuccess();
         navigate('/analyze')
       } catch (error) {
         setMessage(`Login Error: ${error.message}. Redirecting...`)
+        playError();
         clearTokens()
         setTimeout(() => navigate('/'), 3000)
       }
@@ -33,6 +36,7 @@ function Callback() {
 
     if (error) {
       setMessage(`Login failed: ${error}. Please try again. Redirecting...`)
+      playError();
       if (!processingRef.current) {
         processingRef.current = true
         clearTokens()
@@ -47,6 +51,7 @@ function Callback() {
       if (!processingRef.current) {
         processingRef.current = true
         setMessage('Invalid callback. Redirecting to login...')
+        playError();
         clearTokens()
         setTimeout(() => navigate('/'), 1000)
       }

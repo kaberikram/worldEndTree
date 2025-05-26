@@ -2,6 +2,7 @@ import { useRef, useMemo, useEffect, useState } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import '../materials/GooeyBranchMaterial'
+import { playAppear } from '../../utils/sfx'
 
 const BRANCH_APPEAR_ANIMATION_DURATION = 500; // ms
 
@@ -18,6 +19,8 @@ function Branch({ startPoint, endPoint, animationOffset = 0, appearDelay = 0 }) 
     const now = performance.now();
     setAnimationStartTime(now + appearDelay);
     setCurrentScale(0.01); // Reset scale if component re-renders with new delay
+    if (appearDelay === 0) playAppear();
+    else setTimeout(() => playAppear(), appearDelay);
   }, [appearDelay]);
 
   const { position, quaternion, length } = useMemo(() => {

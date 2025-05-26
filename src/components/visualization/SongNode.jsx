@@ -1,7 +1,8 @@
 import { useRef, useState, useEffect, useMemo } from 'react'
-import { useTexture, Billboard } from '@react-three/drei'
+import { useTexture, Billboard, Html } from '@react-three/drei'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
+import { playSelect, playAppear } from '../../utils/sfx'
 
 const SONG_NODE_APPEAR_ANIMATION_DURATION = 500; // ms
 
@@ -14,6 +15,8 @@ function SongNode(props) {
     rank, 
     appearDelay = 0, 
     isUserProfile = false, // Destructure isUserProfile, default to false
+    isSelected = false,
+    trackIndex,
     ...rest 
   } = props
 
@@ -77,6 +80,30 @@ function SongNode(props) {
       scale={combinedScale > 0.001 ? combinedScale : 0.001} 
       {...rest}
     >
+      {isSelected && trackName && (
+        <Billboard position={[0, 1.2, 0]}>
+          <Html center style={{
+            pointerEvents: 'none',
+            color: '#fff',
+            fontFamily: 'system-ui, -apple-system, sans-serif',
+            fontWeight: 500,
+            fontSize: '0.9em',
+            letterSpacing: '1px',
+            textAlign: 'center',
+            textShadow: '0 2px 8px #000',
+            whiteSpace: 'nowrap',
+            border: '1.5px solid #fff',
+            borderRadius: '20px',
+            background: 'rgba(0,0,0,0.18)',
+            padding: '4px 14px',
+            boxSizing: 'border-box',
+            minWidth: '0',
+            display: 'inline-block',
+          }}>
+            {`${trackIndex + 1}. ${trackName}`}
+          </Html>
+        </Billboard>
+      )}
       <mesh
         ref={meshRef}
         renderOrder={1}
@@ -87,6 +114,7 @@ function SongNode(props) {
           if (trackName) {
             console.log('Clicked track:', trackName, 'at position:', position, 'Spotify ID:', spotifyId, 'Rank:', rank)
           }
+          playSelect();
         }}
         onPointerOver={(event) => {
           if (isUserProfile) return; // Disable hover for user profile
