@@ -714,7 +714,10 @@ function MainAppScreen() {
           })}
         </Suspense>
 
-        <OrbitControls autoRotate autoRotateSpeed={0.4} enablePan={true} target={[0, 0, 0]} ref={controlsRef} />
+        <OrbitControls autoRotate autoRotateSpeed={0.4} enablePan={true} target={[0, 0, 0]} ref={controlsRef} 
+          enableDamping={true}
+          dampingFactor={0.02}
+        />
 
         <EffectComposer>
           <Bloom 
