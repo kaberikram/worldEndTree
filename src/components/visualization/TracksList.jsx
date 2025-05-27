@@ -110,6 +110,13 @@ function TracksList({ topTracks, onAnalyzeBranch, analyzing, analysisComplete, a
     }
   }, [showSummary]);
 
+  // When loading orb is shown, scroll container to top
+  useEffect(() => {
+    if (shouldRenderOrb && containerRef.current) {
+      containerRef.current.scrollTop = 0;
+    }
+  }, [shouldRenderOrb]);
+
   // Handle button text fade transition
   useEffect(() => {
     if (analyzing && !analysisComplete) {
@@ -206,8 +213,6 @@ function TracksList({ topTracks, onAnalyzeBranch, analyzing, analysisComplete, a
         style={{
           maxWidth: expanded ? '250px' : '160px',
           width: expanded ? '250px' : '160px',
-          maxHeight: '120px',
-          overflowY: showSummary ? 'hidden' : 'auto',
           overflowX: 'hidden',
           background: 'transparent',
           padding: '16px',
@@ -242,7 +247,15 @@ function TracksList({ topTracks, onAnalyzeBranch, analyzing, analysisComplete, a
           }}>
             Deep Rooted Tracks
           </h3>
-          <ol className="track-list" style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+          <ol className="track-list" style={{
+            listStyle: 'none',
+            padding: 0,
+            margin: 0,
+            maxHeight: '90px',
+            overflowY: (showSummary || shouldRenderOrb) ? 'hidden' : 'auto',
+            overflowX: 'hidden',
+            scrollBehavior: 'smooth',
+          }}>
             {topTracks.map((track) => (
               <li
                 key={track.id}
@@ -338,8 +351,8 @@ function TracksList({ topTracks, onAnalyzeBranch, analyzing, analysisComplete, a
               margin: 0,
               marginBottom: '6px',
               fontSize: '1em',
-              color: '#fff',
-              fontWeight: 700,
+              color: '#ffe082',
+              fontWeight: 400,
               letterSpacing: '0.5px',
               textAlign: 'center',
               textShadow: '0 2px 8px rgba(0,0,0,0.18)'

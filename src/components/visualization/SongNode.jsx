@@ -17,6 +17,9 @@ function SongNode(props) {
     isUserProfile = false, // Destructure isUserProfile, default to false
     isSelected = false,
     trackIndex,
+    artistName = '',
+    genres = [],
+    durationMs = null,
     ...rest 
   } = props
 
@@ -82,7 +85,7 @@ function SongNode(props) {
     >
       {isSelected && trackName && (
         <Billboard position={[0, 1.2, 0]}>
-          <Html center style={{
+          <Html center distanceFactor={6} style={{
             pointerEvents: 'none',
             color: '#fff',
             fontFamily: 'system-ui, -apple-system, sans-serif',
@@ -92,15 +95,48 @@ function SongNode(props) {
             textAlign: 'center',
             textShadow: '0 2px 8px #000',
             whiteSpace: 'nowrap',
-            border: '1.5px solid #fff',
+            border: '1px solid #fff',
             borderRadius: '20px',
-            background: 'rgba(0,0,0,0.18)',
+            background: 'transparent',
             padding: '4px 14px',
             boxSizing: 'border-box',
             minWidth: '0',
             display: 'inline-block',
           }}>
             {`${trackIndex + 1}. ${trackName}`}
+          </Html>
+        </Billboard>
+      )}
+      {isSelected && (
+        <Billboard position={[1.1, 0.5, 0]}>
+          <Html distanceFactor={6} style={{
+            pointerEvents: 'none',
+            color: '#fff',
+            fontFamily: 'system-ui, -apple-system, sans-serif',
+            fontWeight: 400,
+            fontSize: '0.85em',
+            textAlign: 'left',
+            textShadow: '0 2px 8px #000',
+            borderRadius: '12px',
+            background: 'transparent',
+            border: '1px solid #fff',
+            padding: '10px 16px',
+            boxSizing: 'border-box',
+            minWidth: '120px',
+            maxWidth: '180px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '6px',
+          }}>
+            <div style={{ fontWeight: 600, fontSize: '1em', marginBottom: '2px' }}>{artistName}</div>
+            <div style={{ fontSize: '0.85em', color: '#ffe082', marginBottom: '2px', whiteSpace: 'normal', wordBreak: 'break-word' }}>
+              {genres && genres.length > 0 ? genres.join(', ') : 'Unknown'}
+            </div>
+            {durationMs !== null && (
+              <div style={{ fontSize: '0.85em', color: '#b3b3b3' }}>
+                {formatDuration(durationMs)}
+              </div>
+            )}
           </Html>
         </Billboard>
       )}
@@ -141,3 +177,11 @@ function SongNode(props) {
 }
 
 export default SongNode 
+
+// Helper to format ms to mm:ss
+function formatDuration(ms) {
+  const totalSeconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+} 

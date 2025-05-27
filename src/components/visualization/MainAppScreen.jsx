@@ -53,6 +53,10 @@ function MainAppScreen() {
     if (!cameraRef.current || !controlsRef.current) return;
     const camera = cameraRef.current;
     const controls = controlsRef.current;
+    // Adaptive z-offset and x-offset for mobile/desktop
+    const isMobile = window.innerWidth < 600;
+    const zOffset = isMobile ? 7 : 4; // further back on mobile
+    const xOffset = isMobile ? 0.5 : 0; // shift right on mobile
     // Animate camera position and controls target
     const start = {
       position: camera.position.clone(),
@@ -60,11 +64,11 @@ function MainAppScreen() {
     };
     const end = {
       position: new THREE.Vector3(
-        targetPosition.x,
+        targetPosition.x + xOffset,
         targetPosition.y,
-        targetPosition.z + 4 // Offset camera back a bit
+        targetPosition.z + zOffset
       ),
-      target: new THREE.Vector3(targetPosition.x, targetPosition.y, targetPosition.z),
+      target: new THREE.Vector3(targetPosition.x + xOffset, targetPosition.y, targetPosition.z),
     };
     const duration = 0.8; // seconds (a bit slower)
     let startTime = null;
@@ -246,7 +250,34 @@ function MainAppScreen() {
           return
         }
         const tracksData = await tracksResponse.json()
-        setTopTracks(tracksData.items)
+        const tracks = tracksData.items
+
+        // Fetch artist genres for all unique artists
+        const allArtistIds = [...new Set(tracks.flatMap(track => track.artists.map(artist => artist.id)))];
+        let artistDetails = [];
+        for (let i = 0; i < allArtistIds.length; i += 50) {
+          const batchIds = allArtistIds.slice(i, i + 50);
+          const response = await fetch(`https://api.spotify.com/v1/artists?ids=${batchIds.join(',')}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (response.ok) {
+            const data = await response.json();
+            artistDetails = artistDetails.concat(data.artists);
+          }
+        }
+        const artistGenresMap = {};
+        artistDetails.forEach(artist => {
+          artistGenresMap[artist.id] = artist.genres || [];
+        });
+        // Merge genres into each artist in each track
+        const tracksWithGenres = tracks.map(track => ({
+          ...track,
+          artists: track.artists.map(artist => ({
+            ...artist,
+            genres: artistGenresMap[artist.id] || []
+          }))
+        }));
+        setTopTracks(tracksWithGenres);
 
         // Fetch User Profile
         const profileResponse = await fetch('https://api.spotify.com/v1/me', {
@@ -633,11 +664,17 @@ function MainAppScreen() {
             // Find the correct track index and name by matching nodeProps.id to topTracks
             let trackIndex = null;
             let trackName = null;
+            let artistName = '';
+            let genres = [];
+            let durationMs = null;
             if (topTracks) {
               const foundIndex = topTracks.findIndex(track => track.id === nodeProps.id);
               if (foundIndex !== -1) {
                 trackIndex = foundIndex;
                 trackName = topTracks[foundIndex].name;
+                artistName = topTracks[foundIndex].artists.map(a => a.name).join(', ');
+                genres = topTracks[foundIndex].artists.flatMap(a => a.genres || []).filter(Boolean);
+                durationMs = topTracks[foundIndex].duration_ms;
               }
             }
 
@@ -649,6 +686,9 @@ function MainAppScreen() {
                 isSelected={selectedTrackId === nodeProps.id}
                 trackIndex={trackIndex}
                 trackName={trackName}
+                artistName={artistName}
+                genres={genres}
+                durationMs={durationMs}
               />
             );
           })}
