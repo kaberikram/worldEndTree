@@ -230,27 +230,30 @@ function MainAppScreen() {
       }
 
       try {
-        // Fetch Top Tracks
-        const tracksResponse = await fetch('https://api.spotify.com/v1/me/top/tracks?time_range=medium_term&limit=10', {
+        // Fetch Top Tracks (medium_term first)
+        let tracksResponse = await fetch('https://api.spotify.com/v1/me/top/tracks?time_range=medium_term&limit=10', {
           headers: {
             Authorization: `Bearer ${token}`,
           },
         })
-        
-        if (!tracksResponse.ok) {
-          const errorData = await tracksResponse.json()
-          if (tracksResponse.status === 401) {
-            setError('Your Spotify session has expired or changed. Please log in again.')
-            clearTokens()
-          } else {
-            setError(errorData.error?.message || 'Failed to fetch top tracks from Spotify.')
-          }
-          setLoading(false)
-          setContentOpacity(1)
-          return
+        let tracksData = await tracksResponse.json();
+        let tracks = tracksData.items;
+        // If no tracks, fallback to long_term
+        if (!tracks || tracks.length === 0) {
+          tracksResponse = await fetch('https://api.spotify.com/v1/me/top/tracks?time_range=long_term&limit=10', {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          });
+          tracksData = await tracksResponse.json();
+          tracks = tracksData.items;
         }
-        const tracksData = await tracksResponse.json()
-        const tracks = tracksData.items
+        if (!tracks || tracks.length === 0) {
+          setError('No top tracks found for your account. Try listening to more music on Spotify!');
+          setLoading(false);
+          setContentOpacity(1);
+          return;
+        }
 
         // Fetch artist genres for all unique artists
         const allArtistIds = [...new Set(tracks.flatMap(track => track.artists.map(artist => artist.id)))];
